@@ -1,0 +1,118 @@
+[
+  {
+    "id": "q_pct_001",
+    "courseId": "qa-speed-arith",
+    "subTopic": "percentages",
+    "text": "Find 18% of 480.",
+    "options": ["72", "84", "86.4", "92"],
+    "correctIndex": 2,
+    "conceptTags": ["percentages", "base100"],
+    "fastMethod": {
+      "title": "Use 10% and 1% breakdown",
+      "justificationMd": "10% of 480 = 48\n1% of 480 = 4.8\n20% is 2 * 48 = 96\n2% is 2 * 4.8 = 9.6\n18% = 20% - 2% = 96 - 9.6 = 86.4",
+      "pitfallMd": "Calculating 20% and adding 2% instead of subtracting."
+    },
+    "validator": {
+      "type": "percentage_exact",
+      "p": 18.0,
+      "base": 480.0,
+      "rounding": "exact"
+    }
+  },
+  {
+    "id": "q_ratio_001",
+    "courseId": "qa-speed-arith",
+    "subTopic": "ratios",
+    "text": "If a:b = 5:9 and b:c = 4:7, find a:b:c.",
+    "options": ["20:36:63", "20:30:60", "15:36:63", "20:36:56"],
+    "correctIndex": 0,
+    "conceptTags": ["ratios", "proportion"],
+    "fastMethod": {
+      "title": "LCM method for merging ratios",
+      "justificationMd": "To merge a:b and b:c, make 'b' common.\nLCM of 9 and 4 is 36.\nConvert a:b = 5:9 to (5*4):(9*4) = 20:36.\nConvert b:c = 4:7 to (4*9):(7*9) = 36:63.\nSo, a:b:c = 20:36:63.",
+      "pitfallMd": "Forgetting to scale all parts of the ratio."
+    },
+    "validator": {
+      "type": "ratio_identity",
+      "a": 20,
+      "b": 63,
+      "transform": "scale"
+    }
+  },
+    {
+    "id": "q_si_001",
+    "courseId": "qa-speed-arith",
+    "subTopic": "si",
+    "text": "Find the simple interest on ₹68,000 at 16 2/3% per annum for 9 months.",
+    "options": ["₹8500", "₹8200", "₹9500", "₹9000"],
+    "correctIndex": 0,
+    "conceptTags": ["simple-interest", "fractions"],
+    "fastMethod": {
+      "title": "Fractional Rate & Time Conversion",
+      "justificationMd": "16 2/3% = 1/6.\n9 months = 9/12 years = 3/4 years.\nSI = P * R * T = 68000 * (1/6) * (3/4) = 68000 * (1/8) = 8500.",
+      "pitfallMd": "Using the percentage directly without converting to a fraction, or using months directly instead of years."
+    },
+    "validator": {
+      "type": "si_exact",
+      "P": 68000.0,
+      "r": 0.1666666667,
+      "t": 0.75
+    }
+  },
+  {
+    "id": "q_ci_001",
+    "courseId": "qa-speed-arith",
+    "subTopic": "ci",
+    "text": "On a sum of ₹10000, what is the compound interest for 2 years at 10% per annum, compounded annually?",
+    "options": ["₹2000", "₹2100", "₹2200", "₹12100"],
+    "correctIndex": 1,
+    "conceptTags": ["compound-interest"],
+    "fastMethod": {
+      "title": "Successive Percentage Change",
+      "justificationMd": "For two years at 10%, the effective rate is (10 + 10 + (10*10)/100)% = 21%.\nCI = 21% of 10000 = ₹2100.",
+      "pitfallMd": "Calculating Simple Interest (20%) or miscalculating the final amount instead of just the interest."
+    },
+    "validator": {
+      "type": "ci_exact",
+      "P": 10000.0,
+      "r": 0.10,
+      "t": 2.0,
+      "m": 1
+    }
+  },
+    {
+    "id": "q_pct_002",
+    "courseId": "qa-speed-arith",
+    "subTopic": "percentages",
+    "text": "A man's salary is decreased by 50%. By what percent should his new salary be increased to restore his original salary?",
+    "options": ["50%", "75%", "100%", "125%"],
+    "correctIndex": 2,
+    "conceptTags": ["percentages", "successive-change"],
+    "fastMethod": {
+      "title": "Fractional Change Logic",
+      "justificationMd": "A 50% decrease means the salary becomes 1/2 of the original.\nTo restore it, you need to add another 1/2, which is 100% of the *new* salary.",
+      "pitfallMd": "Assuming the increase should also be 50%."
+    },
+    "validator": {
+      "type": "percentage_exact",
+      "p": 100.0,
+      "base": 50.0
+    }
+  },
+  {
+    "id": "q_ratio_002",
+    "courseId": "qa-speed-arith",
+    "subTopic": "ratios",
+    "text": "Two numbers are in the ratio 3:5. If 9 is subtracted from each, the new numbers are in the ratio 12:23. The smaller number is:",
+    "options": ["27", "33", "49", "55"],
+    "correctIndex": 1,
+    "conceptTags": ["ratios", "linear-equations"],
+    "fastMethod": null,
+    "validator": {
+      "type": "ratio_identity",
+      "a": 33,
+      "b": 55,
+      "transform": "subtract_9_and_check_ratio_12_23"
+    }
+  }
+]

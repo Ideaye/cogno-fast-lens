@@ -16,7 +16,7 @@ In high-stakes exams, speed is as important as accuracy. Students often learn co
 ## 3. Users & Use Cases
 
 **Target Segments:**
-*   **MVP Focus:** Students preparing for Indian Board Exams: Class 10, 11, and 13 Chemistry.
+*   **MVP Focus:** Quantitative Aptitude → Speed Arithmetic (Percentages, Ratios, SI/CI) + Class 10, 11, and 13 Chemistry.
 *   **Future Expansion:** Competitive exam aspirants (JEE, NEET) and government job exam candidates.
 
 **Use Cases:**
@@ -38,7 +38,7 @@ Our core value is the **FastLens Card**, which provides immediate, contextual fe
     1.  User answers a question.
     2.  Log the attempt (correctness, time, first-action time).
     3.  Display the FastLens card (fastest method, justification, common pitfalls).
-*   **Content:** Seeded with public courses for Class 10, 11, 13 Chemistry.
+*   **Content:** Seeded with public courses for Quantitative Aptitude → Speed Arithmetic (Percentages, Ratios, SI/CI) and Class 10, 11, 13 Chemistry.
 *   **Intelligence:** "Adaptive-lite" algorithm for question selection (no repeats, mix difficulty, focus on weak spots).
 *   **Tech:** No user authentication. Anonymous sessions are tracked via `deviceId` in `localStorage`.
 
@@ -116,8 +116,11 @@ erDiagram
 **Example Data:**
 *   **courses:** `{ id: "chem10", name: "Class 10 Chemistry" }`
 *   **questions:** `{ id: "q1", course_id: "chem10", text: "What is the pH of a neutral solution?", options: ["<7", "7", ">7"], correct_option_index: 1, concept_tags: "acids-bases" }`
-*   **fast_methods:** `{ id: "fm1", question_id: "q1", title: "Keyword association", justification: "The word 'neutral' directly maps to pH 7. No calculation needed.", ... }`
+*   **fast_methods:** `{ id: "fm1", question_id: "q1", title: "Keyword association", justification: "The word '''neutral''' directly maps to pH 7. No calculation needed.", ... }`
 *   **attempts:** `{ id: "a1", device_id: "xyz", question_id: "q1", is_correct: true, time_ms: 1500, ... }`
+*   **courses:** `{ id: "qa_speed", name: "Quant Aptitude — Speed Arithmetic" }`
+*   **questions:** `{ id: "q_pct_01", course_id: "qa_speed", text: "If a price increases from ₹400 to ₹460, what is the % increase?", options: ["10%", "12%", "15%"], correct_option_index: 1, concept_tags: "percentages" }`
+*   **fast_methods:** `{ id: "fm_pct_01", question_id: "q_pct_01", title: "Base-to-change mental math", justification: "Change = 60 on base 400 → 60/400 = 6/40 = 3/20 = 0.15 → 15% (but note: asked is from 400 to 460, so correct is 15% only if base is 400; show guardrail example).", pitfall_analysis: "Common slip: dividing by 460 instead of base 400." }`
 
 ## 9. Algorithms
 
@@ -237,4 +240,6 @@ interface FastMethod {
 - [ ] The "No Safe Shortcut" message displays correctly for questions without a fast method.
 - [ ] Admin can create, update, and delete a question.
 - [ ] Basic analytics for question attempts are being captured.
+- [ ] “Quant Aptitude — Speed Arithmetic” course is live and selectable.
+- [ ] FastLens cards appear for Speed Arithmetic questions; “No Safe Shortcut” renders when absent.
 ```
