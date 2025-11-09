@@ -1,0 +1,50 @@
+[
+  {
+    "id": "q_pct_01",
+    "course_id": "qa_speed",
+    "text": "Price rises from ₹400 to ₹460. % increase?",
+    "options": ["10%", "12%", "15%"],
+    "correct_option_index": 2,
+    "concept_tags": ["percentages"]
+  },
+  {
+    "id": "q_pct_02",
+    "course_id": "qa_speed",
+    "text": "A value falls from 200 to 150. % decrease?",
+    "options": ["20%", "25%", "30%"],
+    "correct_option_index": 1,
+    "concept_tags": ["percentages"]
+  },
+  {
+    "id": "q_rat_01",
+    "course_id": "qa_speed",
+    "text": "Ratio of A:B is 3:5. If A=36, B=?",
+    "options": ["54", "60", "72"],
+    "correct_option_index": 1,
+    "concept_tags": ["ratios"]
+  },
+  {
+    "id": "q_rat_02",
+    "course_id": "qa_speed",
+    "text": "Simplify ratio 84:126",
+    "options": ["2:3", "3:5", "4:7"],
+    "correct_option_index": 0,
+    "concept_tags": ["ratios"]
+  },
+  {
+    "id": "q_si_01",
+    "course_id": "qa_speed",
+    "text": "SI on ₹5,000 at 8% p.a. for 2 years?",
+    "options": ["₹600", "₹700", "₹800"],
+    "correct_option_index": 2,
+    "concept_tags": ["si"]
+  },
+  {
+    "id": "q_ci_01",
+    "course_id": "qa_speed",
+    "text": "CI on ₹2,000 at 10% p.a. for 2 years (annual comp.)?",
+    "options": ["₹200", "₹210", "₹220"],
+    "correct_option_index": 1,
+    "concept_tags": ["ci"]
+  }
+]

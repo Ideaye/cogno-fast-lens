@@ -1,0 +1,44 @@
+[
+  {
+    "id": "fm_pct_01",
+    "question_id": "q_pct_01",
+    "title": "Change/Base mental math",
+    "justification": "Change=60 on base 400 ⇒ 60/400 = 6/40 = 3/20 = 0.15 ⇒ **15%**. No need for long division.",
+    "pitfall_analysis": "Pitfall: dividing by 460 instead of the base 400."
+  },
+  {
+    "id": "fm_pct_02",
+    "question_id": "q_pct_02",
+    "title": "Drop/Base quick check",
+    "justification": "Drop=50 on base 200 ⇒ 50/200=0.25 ⇒ **25%**.",
+    "pitfall_analysis": "Pitfall: using 150 as base; base is original 200."
+  },
+  {
+    "id": "fm_rat_01",
+    "question_id": "q_rat_01",
+    "title": "Direct scale-up of ratio",
+    "justification": "3→36 is ×12, so 5→**60** (keep multiplier same).",
+    "pitfall_analysis": "Pitfall: adding 3 and 5 or mixing multipliers."
+  },
+  {
+    "id": "fm_rat_02",
+    "question_id": "q_rat_02",
+    "title": "Prime-factor cancel",
+    "justification": "84:126 ⇒ divide both by 42 ⇒ **2:3** (fast: spot 7×12 and 7×18 ⇒ then ÷6).",
+    "pitfall_analysis": "Pitfall: only dividing once and stopping early."
+  },
+  {
+    "id": "fm_si_01",
+    "question_id": "q_si_01",
+    "title": "SI = P×R×T/100",
+    "justification": "5000×8×2/100 = **₹800**. Compute mentally: 5000×16%= 800.",
+    "pitfall_analysis": "Pitfall: turning SI into CI steps accidentally."
+  },
+  {
+    "id": "fm_ci_01",
+    "question_id": "q_ci_01",
+    "title": "CI via (1+r)^2",
+    "justification": "2000×[(1.10)^2−1] = 2000×0.21 = **₹210**.",
+    "pitfall_analysis": "Pitfall: using SI formula for CI."
+  }
+]
