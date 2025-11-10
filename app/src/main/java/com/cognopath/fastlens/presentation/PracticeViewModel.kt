@@ -4,9 +4,7 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.cognopath.fastlens.data.local.AppDatabase
-import com.cognopath.fastlens.data.local.QuestionAssetDataSource
-import com.cognopath.fastlens.data.repository.PracticeRepository
+import com.cognopath.fastlens.data.repository.SupabaseRepository
 import com.cognopath.fastlens.domain.logic.isFastMethodSafe
 import com.cognopath.fastlens.domain.logic.nextQuestion
 import com.cognopath.fastlens.domain.model.Attempt
@@ -22,21 +20,18 @@ class PracticeViewModel(application: Application) : AndroidViewModel(application
     private val _uiState = MutableStateFlow(PracticeUiState())
     val uiState: StateFlow<PracticeUiState> = _uiState.asStateFlow()
 
-    private val repository: PracticeRepository
+    private val repository = SupabaseRepository()
     private var questionPool: List<Question> = emptyList()
     private var sessionStartTime: Long = 0L
     private var questionStartTime: Long = 0L
 
     init {
-        val db = AppDatabase.getDatabase(application)
-        val dataSource = QuestionAssetDataSource(application)
-        repository = PracticeRepository(dataSource, db.attemptDao())
         loadContent()
     }
 
     private fun loadContent() {
         viewModelScope.launch {
-            questionPool = repository.loadQuestions()
+            questionPool = repository.getQuestions("qa_speed") // Defaulting to qa_speed for now
             Log.d("PracticeViewModel", "practice_session_started")
             sessionStartTime = System.currentTimeMillis()
             loadNextQuestion()
@@ -68,7 +63,7 @@ class PracticeViewModel(application: Application) : AndroidViewModel(application
         )
 
         viewModelScope.launch {
-            repository.saveAttempt(attempt)
+            repository.logAttempt(attempt)
             Log.d("PracticeViewModel", "question_attempted: id=${question.id}, correct=$isCorrect, timeMs=$timeMs, firstActionMs=${currentState.timeToFirstActionMs}, subTopic=${question.subTopic}")
 
             val isSafe = question.fastMethod != null && isFastMethodSafe(question.validator, question.options[question.correctIndex])
@@ -79,7 +74,6 @@ class PracticeViewModel(application: Application) : AndroidViewModel(application
                 Log.d("PracticeViewModel", "fastlens_shown: hasShortcut=false")
             }
 
-            val history = repository.getRecentAttempts(50)
             val totalAttempts = uiState.value.questionCount + 1
             val correctAttempts = uiState.value.correctCount + if (isCorrect) 1 else 0
             val totalTime = (uiState.value.avgTimeMs * uiState.value.questionCount) + timeMs
@@ -101,8 +95,8 @@ class PracticeViewModel(application: Application) : AndroidViewModel(application
 
     fun loadNextQuestion() {
         viewModelScope.launch {
-            val history = repository.getRecentAttempts(50)
-            val next = nextQuestion(_uiState.value.currentQuestion?.id, history, questionPool)
+            // The adaptive selector logic would need to be updated to work with Supabase data
+            val next = questionPool.randomOrNull() // Simple random selection for now
             if (next != null) {
                 _uiState.update {
                     PracticeUiState(
