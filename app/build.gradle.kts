@@ -16,6 +16,8 @@ android {
     versionCode = 1
     versionName = "0.1.0"
     vectorDrawables { useSupportLibrary = true }
+    buildConfigField("String", "SUPABASE_URL", "\"${project.properties["SUPABASE_URL"]}\"")
+    buildConfigField("String", "SUPABASE_ANON_KEY", "\"${project.properties["SUPABASE_ANON_KEY"]}\"")
   }
 
   buildTypes {
@@ -56,4 +58,10 @@ dependencies {
 
   // Kotlinx Serialization
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+
+  // Add these Supabase dependencies
+  implementation(platform("io.github.jan-tennert.supabase:bom:2.5.0"))
+  implementation("io.github.jan-tennert.supabase:postgrest-kt")
+  implementation("io.github.jan-tennert.supabase:auth-kt")
+  implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3") // Make sure this is here
 }
