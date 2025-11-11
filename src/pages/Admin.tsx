@@ -6,14 +6,20 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 
-const ADMIN_SECRET = import.meta.env.VITE_ADMIN_SECRET || "demo_secret_123";
+const ADMIN_SECRET = import.meta.env.VITE_ADMIN_SECRET;
 
 export default function Admin() {
   const [searchParams] = useSearchParams();
   const [isAuthorized, setIsAuthorized] = useState(false);
+  const [configError, setConfigError] = useState<string | null>(null);
 
   useEffect(() => {
-    const secret = searchParams.get('secret');
+    if (!ADMIN_SECRET) {
+      setConfigError("Admin secret is not configured. Set VITE_ADMIN_SECRET to enable access.");
+      return;
+    }
+
+    const secret = searchParams.get("secret");
     if (secret === ADMIN_SECRET) {
       setIsAuthorized(true);
     }
@@ -59,6 +65,17 @@ export default function Admin() {
     } else {
       toast.success("Demo data seeded successfully!");
     }
+  }
+
+  if (configError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Card className="p-8 max-w-md w-full text-center">
+          <h1 className="text-2xl font-bold mb-4">Admin Disabled</h1>
+          <p className="text-muted-foreground text-sm">{configError}</p>
+        </Card>
+      </div>
+    );
   }
 
   if (!isAuthorized) {

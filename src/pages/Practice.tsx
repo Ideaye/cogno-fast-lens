@@ -139,7 +139,7 @@ export default function Practice() {
     setShowResult(true);
 
     // Save attempt
-      const { data, error } = await supabase
+      const { error } = await supabase
       .from('attempts')
       .insert({
         device_id: deviceId,
@@ -150,9 +150,7 @@ export default function Practice() {
         time_taken_ms: timeTaken,
         time_to_first_action_ms: firstActionTimeRef.current,
         skipped: false,
-      })
-      .select()
-      .single();
+        });
 
       if (!error) {
         setSessionAttempts(prev => [
@@ -187,7 +185,7 @@ export default function Practice() {
     
     const timeTaken = Date.now() - startTimeRef.current;
 
-    const { data, error } = await supabase
+      const { error } = await supabase
       .from('attempts')
       .insert({
         device_id: deviceId,
@@ -197,9 +195,7 @@ export default function Practice() {
         time_taken_ms: timeTaken,
         time_to_first_action_ms: firstActionTimeRef.current,
         skipped: true,
-      })
-      .select()
-      .single();
+        });
 
       if (!error) {
         setSessionAttempts(prev => [
