@@ -16,8 +16,9 @@ android {
     versionCode = 1
     versionName = "0.1.0"
     vectorDrawables { useSupportLibrary = true }
-    buildConfigField("String", "SUPABASE_URL", "\"${project.properties["SUPABASE_URL"]}\"")
-    buildConfigField("String", "SUPABASE_ANON_KEY", "\"${project.properties["SUPABASE_ANON_KEY"]}\"")
+    buildConfigField("String", "https://tbjongiaucnivhjuatju.supabase.co", "\"${project.properties["https://tbjongiaucnivhjuatju.supabase.co"]}\"")
+    buildConfigField("String", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRiam9uZ2lhdWNuaXZoanVhdGp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI2NjU0NzAsImV4cCI6MjA3ODI0MTQ3MH0.xG4Do9NFiXAd4MHjWGfKWSUxyJ-HwR4IuyXWKsVSVvU", "\"${project.properties["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRiam9uZ2lhdWNuaXZoanVhdGp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI2NjU0NzAsImV4cCI6MjA3ODI0MTQ3MH0.xG4Do9NFiXAd4MHjWGfKWSUxyJ-HwR4IuyXWKsVSVvU"]}\"")
+    buildConfigField("String", "sk-abcdef1234567890abcdef1234567890abcdef12", "\"${project.properties["sk-abcdef1234567890abcdef1234567890abcdef12"]}\"")
   }
 
   buildTypes {
@@ -56,12 +57,10 @@ dependencies {
   implementation("androidx.room:room-ktx:2.6.1")
   ksp("androidx.room:room-compiler:2.6.1")
 
-  // Kotlinx Serialization
-  implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
-
   // Add these Supabase dependencies
   implementation(platform("io.github.jan-tennert.supabase:bom:2.5.0"))
   implementation("io.github.jan-tennert.supabase:postgrest-kt")
   implementation("io.github.jan-tennert.supabase:auth-kt")
-  implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3") // Make sure this is here
+  implementation("io.github.jan-tennert.supabase:functions-kt")
+  implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 }
