@@ -141,6 +141,13 @@ function normalizeFastMethod(raw: SupabaseFastMethodRow | null): NormalizedFastM
   };
 }
 
+const StatCounter = ({ label, value }: { label: string; value: string }) => (
+  <div className="flex flex-col items-center">
+    <span className="text-muted-foreground text-sm">{label}</span>
+    <span className="text-lg font-semibold">{value}</span>
+  </div>
+);
+
 export default function Practice() {
     const [courses, setCourses] = useState<CourseRow[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<string>("");
