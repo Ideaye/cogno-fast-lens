@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getOrCreateDeviceId } from "@/lib/deviceId";
 import { Button } from "@/components/ui/button";
@@ -14,8 +14,22 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
-import type { Course, Question, FastMethod, Attempt, QuestionOption } from "@/types/database";
-import { CheckCircle2, XCircle, SkipForward, RotateCcw, Zap } from "lucide-react";
+import type { Course, Question, FastMethod, QuestionOption } from "@/types/database";
+import { CheckCircle2, XCircle, SkipForward, RotateCcw, Zap, Clock } from "lucide-react";
+
+type SessionAttemptSummary = {
+  id: string;
+  questionId: string;
+  conceptTags: string[];
+  correct: boolean | null;
+  skipped: boolean;
+  timeTakenMs: number;
+};
+
+const createAttemptId = () =>
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `attempt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 export default function Practice() {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -25,8 +39,9 @@ export default function Practice() {
   const [selectedAnswer, setSelectedAnswer] = useState<string>("");
   const [showResult, setShowResult] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
-  const [sessionAttempts, setSessionAttempts] = useState<Attempt[]>([]);
-  
+    const [sessionAttempts, setSessionAttempts] = useState<SessionAttemptSummary[]>([]);
+    const [showFullSolution, setShowFullSolution] = useState(false);
+
   const startTimeRef = useRef<number>(0);
   const firstActionTimeRef = useRef<number | null>(null);
   const deviceId = getOrCreateDeviceId();
@@ -41,7 +56,7 @@ export default function Practice() {
     }
   }, [selectedCourseId]);
 
-  async function loadCourses() {
+    async function loadCourses() {
     const { data, error } = await supabase
       .from('courses')
       .select('*')
@@ -95,9 +110,10 @@ export default function Practice() {
       type: randomQuestion.type as 'MCQ' | 'FR',
       options: randomQuestion.options as unknown as QuestionOption[] | null,
     } as Question);
-    setSelectedAnswer("");
+      setSelectedAnswer("");
     setShowResult(false);
     setFastMethod(null);
+      setShowFullSolution(false);
     startTimeRef.current = Date.now();
     firstActionTimeRef.current = null;
   }
@@ -108,7 +124,7 @@ export default function Practice() {
     }
   }
 
-  async function handleSubmit() {
+    async function handleSubmit() {
     if (!currentQuestion || !selectedAnswer) {
       toast.error("Please select an answer");
       return;
@@ -123,7 +139,7 @@ export default function Practice() {
     setShowResult(true);
 
     // Save attempt
-    const { data, error } = await supabase
+      const { data, error } = await supabase
       .from('attempts')
       .insert({
         device_id: deviceId,
@@ -138,12 +154,22 @@ export default function Practice() {
       .select()
       .single();
 
-    if (!error && data) {
-      setSessionAttempts(prev => [...prev, data as Attempt]);
-    }
+      if (!error) {
+        setSessionAttempts(prev => [
+          ...prev,
+          {
+            id: createAttemptId(),
+            questionId: currentQuestion.id,
+            conceptTags: currentQuestion.concept_tags ?? [],
+            correct,
+            skipped: false,
+            timeTakenMs: timeTaken,
+          },
+        ]);
+      }
 
-    // Load fast method
-    const { data: fmData } = await supabase
+      // Load fast method
+      const { data: fmData } = await supabase
       .from('fast_methods')
       .select('*')
       .eq('question_id', currentQuestion.id)
@@ -154,7 +180,7 @@ export default function Practice() {
     toast[correct ? "success" : "error"](correct ? "Correct!" : "Incorrect");
   }
 
-  async function handleSkip() {
+    async function handleSkip() {
     if (!currentQuestion) return;
 
     handleFirstAction();
@@ -175,9 +201,19 @@ export default function Practice() {
       .select()
       .single();
 
-    if (!error && data) {
-      setSessionAttempts(prev => [...prev, data as Attempt]);
-    }
+      if (!error) {
+        setSessionAttempts(prev => [
+          ...prev,
+          {
+            id: createAttemptId(),
+            questionId: currentQuestion.id,
+            conceptTags: currentQuestion.concept_tags ?? [],
+            correct: null,
+            skipped: true,
+            timeTakenMs: timeTaken,
+          },
+        ]);
+      }
 
     loadNextQuestion();
     toast.info("Question skipped");
@@ -185,19 +221,47 @@ export default function Practice() {
 
   function handleReset() {
     setSessionAttempts([]);
+      setShowFullSolution(false);
     loadNextQuestion();
     toast.success("Session reset");
   }
 
-  const sessionStats = {
-    answered: sessionAttempts.filter(a => !a.skipped).length,
-    accuracy: sessionAttempts.filter(a => !a.skipped).length > 0
-      ? (sessionAttempts.filter(a => a.correct).length / sessionAttempts.filter(a => !a.skipped).length * 100).toFixed(1)
-      : "0.0",
-    avgTime: sessionAttempts.length > 0
-      ? (sessionAttempts.reduce((sum, a) => sum + a.time_taken_ms, 0) / sessionAttempts.length / 1000).toFixed(1)
-      : "0.0",
-  };
+    const answeredAttempts = sessionAttempts.filter(a => !a.skipped);
+    const sessionStats = {
+      answered: answeredAttempts.length,
+      accuracy: answeredAttempts.length > 0
+        ? ((answeredAttempts.filter(a => a.correct).length / answeredAttempts.length) * 100).toFixed(1)
+        : "0.0",
+      avgTime: answeredAttempts.length > 0
+        ? (answeredAttempts.reduce((sum, a) => sum + a.timeTakenMs, 0) / answeredAttempts.length / 1000).toFixed(1)
+        : "0.0",
+    };
+
+    const slowConcepts = useMemo(() => {
+      if (answeredAttempts.length === 0) {
+        return [];
+      }
+
+      const totals = new Map<string, { total: number; count: number }>();
+
+      answeredAttempts.forEach(attempt => {
+        const tags = attempt.conceptTags.length > 0 ? attempt.conceptTags : ['untagged'];
+        tags.forEach(tag => {
+          const record = totals.get(tag) ?? { total: 0, count: 0 };
+          record.total += attempt.timeTakenMs;
+          record.count += 1;
+          totals.set(tag, record);
+        });
+      });
+
+      return Array.from(totals.entries())
+        .map(([tag, { total, count }]) => ({
+          tag,
+          avgTime: total / count / 1000,
+        }))
+        .sort((a, b) => b.avgTime - a.avgTime)
+        .slice(0, 3);
+    }, [answeredAttempts]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -313,8 +377,8 @@ export default function Practice() {
                   </p>
                 </Card>
 
-                {fastMethod ? (
-                  <Card className="p-6 bg-primary/5 border-primary">
+                  {fastMethod ? (
+                    <Card className="p-6 bg-primary/5 border-primary">
                     <div className="flex items-center gap-2 mb-4">
                       <Zap className="w-6 h-6 text-primary" />
                       <h3 className="text-xl font-bold">FastLens: The Fastest Way</h3>
@@ -355,7 +419,7 @@ export default function Practice() {
                     </div>
                   </Card>
                 ) : (
-                  <Card className="p-6 bg-muted">
+                    <Card className="p-6 bg-muted">
                     <p className="text-center text-muted-foreground">
                       No safe shortcut—use the standard method.
                     </p>
@@ -364,6 +428,29 @@ export default function Practice() {
                     </Button>
                   </Card>
                 )}
+
+                  {currentQuestion.solution_steps_md && (
+                    <Card className="p-6">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-5 h-5 text-muted-foreground" />
+                          <h3 className="text-lg font-semibold">Full Step-by-Step</h3>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowFullSolution(prev => !prev)}
+                        >
+                          {showFullSolution ? "Hide Steps" : "Show Steps"}
+                        </Button>
+                      </div>
+                      {showFullSolution && (
+                        <div className="prose prose-sm max-w-none mt-4">
+                          <ReactMarkdown>{currentQuestion.solution_steps_md}</ReactMarkdown>
+                        </div>
+                      )}
+                    </Card>
+                  )}
 
                 <Button onClick={loadNextQuestion} className="w-full" size="lg">
                   Next Question
@@ -377,6 +464,40 @@ export default function Practice() {
           </Card>
         )}
       </div>
+
+        <div className="container mx-auto px-4 pb-12 max-w-3xl">
+          <Card className="p-6">
+            <h2 className="text-xl font-bold mb-4">Session Snapshot</h2>
+            <div className="grid gap-4 md:grid-cols-3">
+              <StatCounter label="Answered" value={sessionStats.answered.toString()} />
+              <StatCounter label="Accuracy" value={`${sessionStats.accuracy}%`} />
+              <StatCounter label="Avg Time" value={`${sessionStats.avgTime}s`} />
+            </div>
+
+            <div className="mt-6">
+              <h3 className="text-lg font-semibold mb-2">Slow Concepts</h3>
+              {slowConcepts.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Answer a few questions to see which topics slow you down.
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {slowConcepts.map(concept => (
+                    <li
+                      key={concept.tag}
+                      className="flex items-center justify-between rounded border border-border p-3"
+                    >
+                      <span className="font-medium">{concept.tag}</span>
+                      <span className="text-sm text-muted-foreground">
+                        {concept.avgTime.toFixed(1)}s avg
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </Card>
+        </div>
     </div>
   );
 }
