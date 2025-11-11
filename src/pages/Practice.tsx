@@ -170,6 +170,7 @@ export default function Practice() {
     const { data, error } = await supabase.from("courses").select("*");
 
     if (error) {
+      console.error("Supabase: failed to load courses", error);
       toast.error("Failed to load courses");
       return;
     }
@@ -203,6 +204,9 @@ export default function Practice() {
       .eq("course_id", selectedCourseId);
 
     if (error || !questions || questions.length === 0) {
+      if (error) {
+        console.error("Supabase: failed to load questions", error);
+      }
       toast.error("No questions available");
       return;
     }
@@ -248,7 +252,7 @@ export default function Practice() {
     setShowResult(true);
 
     // Save attempt
-      const { error } = await supabase
+    const { error } = await supabase
       .from('attempts')
       .insert({
         device_id: deviceId,
@@ -294,7 +298,7 @@ export default function Practice() {
     
     const timeTaken = Date.now() - startTimeRef.current;
 
-      const { error } = await supabase
+    const { error } = await supabase
       .from('attempts')
       .insert({
         device_id: deviceId,
