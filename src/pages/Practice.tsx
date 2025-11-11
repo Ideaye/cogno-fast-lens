@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getOrCreateDeviceId } from "@/lib/deviceId";
 import { Button } from "@/components/ui/button";
@@ -14,19 +14,151 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
-import type { Course, Question, FastMethod, Attempt, QuestionOption } from "@/types/database";
-import { CheckCircle2, XCircle, SkipForward, RotateCcw, Zap } from "lucide-react";
+  import type { Course, Question, FastMethod, QuestionOption } from "@/types/database";
+import { CheckCircle2, XCircle, SkipForward, RotateCcw, Zap, Clock } from "lucide-react";
+
+type CourseRow = Course & {
+  name?: string | null;
+};
+
+type SupabaseQuestionRow = Partial<Question> & {
+  text?: string | null;
+  correct_option_index?: number | null;
+  options?: unknown;
+  concept_tags?: string[] | string | null;
+  full_solution_md?: string | null;
+};
+
+type SupabaseFastMethodRow = Partial<FastMethod> & {
+  title?: string | null;
+  justification?: string | null;
+  pitfall_analysis?: string | null;
+  full_solution_md?: string | null;
+  validity_notes_md?: string | null;
+};
+
+type SessionAttemptSummary = {
+  id: string;
+  questionId: string;
+  conceptTags: string[];
+  correct: boolean | null;
+  skipped: boolean;
+  timeTakenMs: number;
+};
+
+const createAttemptId = () =>
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `attempt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+function normalizeQuestion(raw: SupabaseQuestionRow): Question {
+  const optionsSource = Array.isArray(raw.options) ? raw.options : [];
+  const options: QuestionOption[] | null =
+    optionsSource.length > 0
+      ? optionsSource.map((option, index) => {
+          if (typeof option === "string") {
+            return {
+              key: LETTERS[index] ?? String(index + 1),
+              text: option,
+            };
+          }
+          if (option && typeof option === "object") {
+            const candidate = option as Partial<QuestionOption>;
+            if (candidate.key && candidate.text) {
+              return {
+                key: String(candidate.key),
+                text: String(candidate.text),
+              };
+            }
+            if ("text" in candidate) {
+              return {
+                key: LETTERS[index] ?? String(index + 1),
+                text: String(candidate.text),
+              };
+            }
+          }
+          return {
+            key: LETTERS[index] ?? String(index + 1),
+            text: String(option ?? ""),
+          };
+        })
+      : null;
+
+  const conceptTags = Array.isArray(raw.concept_tags)
+    ? (raw.concept_tags as string[])
+    : typeof raw.concept_tags === "string"
+      ? raw.concept_tags
+          .split(/[;,]/)
+          .map((tag) => tag.trim())
+          .filter(Boolean)
+      : [];
+
+  const correctKey =
+    raw.correct_key ??
+    (typeof raw.correct_option_index === "number" && options
+      ? options[raw.correct_option_index]?.key ?? null
+      : null);
+
+  return {
+    id: raw.id ?? "",
+    course_id: raw.course_id ?? "",
+    type: (raw.type as "MCQ" | "FR") ?? "MCQ",
+    stem_md: raw.stem_md ?? raw.text ?? "",
+    options,
+    correct_key: correctKey,
+    solution_steps_md: raw.solution_steps_md ?? raw.full_solution_md ?? null,
+    concept_tags: conceptTags,
+    difficulty_1_5: raw.difficulty_1_5 ?? null,
+    time_budget_sec: raw.time_budget_sec ?? null,
+    created_at: raw.created_at ?? null,
+    updated_at: raw.updated_at ?? null,
+  };
+}
+
+type NormalizedFastMethod = FastMethod & {
+  title?: string | null;
+  pitfall_analysis?: string | null;
+  full_solution_md?: string | null;
+};
+
+function normalizeFastMethod(raw: SupabaseFastMethodRow | null): NormalizedFastMethod | null {
+  if (!raw) return null;
+
+  return {
+    id: raw.id ?? "",
+    question_id: raw.question_id ?? "",
+    short_justification_md:
+      raw.short_justification_md ?? raw.justification ?? "",
+    fast_steps_md: raw.fast_steps_md ?? raw.full_solution_md ?? "",
+    why_others_wrong_md: raw.why_others_wrong_md ?? null,
+    checks_notes_md: raw.checks_notes_md ?? raw.validity_notes_md ?? null,
+    validated: raw.validated ?? true,
+    title: raw.title ?? null,
+    pitfall_analysis: raw.pitfall_analysis ?? null,
+    full_solution_md: raw.full_solution_md ?? null,
+  };
+}
+
+const StatCounter = ({ label, value }: { label: string; value: string }) => (
+  <div className="flex flex-col items-center">
+    <span className="text-muted-foreground text-sm">{label}</span>
+    <span className="text-lg font-semibold">{value}</span>
+  </div>
+);
 
 export default function Practice() {
-  const [courses, setCourses] = useState<Course[]>([]);
+    const [courses, setCourses] = useState<CourseRow[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<string>("");
-  const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
-  const [fastMethod, setFastMethod] = useState<FastMethod | null>(null);
+    const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
+    const [fastMethod, setFastMethod] = useState<FastMethod | null>(null);
   const [selectedAnswer, setSelectedAnswer] = useState<string>("");
   const [showResult, setShowResult] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
-  const [sessionAttempts, setSessionAttempts] = useState<Attempt[]>([]);
-  
+    const [sessionAttempts, setSessionAttempts] = useState<SessionAttemptSummary[]>([]);
+    const [showFullSolution, setShowFullSolution] = useState(false);
+
   const startTimeRef = useRef<number>(0);
   const firstActionTimeRef = useRef<number | null>(null);
   const deviceId = getOrCreateDeviceId();
@@ -42,20 +174,28 @@ export default function Practice() {
   }, [selectedCourseId]);
 
   async function loadCourses() {
-    const { data, error } = await supabase
-      .from('courses')
-      .select('*')
-      .eq('is_public', true)
-      .order('grade');
-    
+    const { data, error } = await supabase.from("courses").select("*");
+
     if (error) {
+      console.error("Supabase: failed to load courses", error);
       toast.error("Failed to load courses");
       return;
     }
-    
-    setCourses(data || []);
-    if (data && data.length > 0) {
-      setSelectedCourseId(data[0].id);
+
+    const rows: CourseRow[] = (data ?? []) as CourseRow[];
+    const publicCourses = rows.filter(
+      (course) => course.is_public === null || course.is_public === undefined || course.is_public === true,
+    );
+
+    publicCourses.sort((a, b) => {
+      const nameA = (a.title ?? a.name ?? a.slug ?? "").toLowerCase();
+      const nameB = (b.title ?? b.name ?? b.slug ?? "").toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+
+    setCourses(publicCourses);
+    if (publicCourses.length > 0) {
+      setSelectedCourseId(publicCourses[0].id);
     }
   }
 
@@ -63,19 +203,17 @@ export default function Practice() {
     if (!selectedCourseId) return;
 
     // Simple adaptive selector
-    const recentAttempts = sessionAttempts.slice(-10);
-    const wrongConcepts = recentAttempts
-      .filter(a => !a.correct)
-      .map(a => a.question_id);
-    
-    const lastThreeIds = sessionAttempts.slice(-3).map(a => a.question_id);
+    const lastThreeIds = sessionAttempts.slice(-3).map(a => a.questionId);
 
     const { data: questions, error } = await supabase
-      .from('questions')
-      .select('*')
-      .eq('course_id', selectedCourseId);
+      .from("questions")
+      .select("*")
+      .eq("course_id", selectedCourseId);
 
     if (error || !questions || questions.length === 0) {
+      if (error) {
+        console.error("Supabase: failed to load questions", error);
+      }
       toast.error("No questions available");
       return;
     }
@@ -88,16 +226,14 @@ export default function Practice() {
     }
 
     // Pick random from available
-    const randomQuestion = availableQuestions[Math.floor(Math.random() * availableQuestions.length)];
-    
-    setCurrentQuestion({
-      ...randomQuestion,
-      type: randomQuestion.type as 'MCQ' | 'FR',
-      options: randomQuestion.options as unknown as QuestionOption[] | null,
-    } as Question);
-    setSelectedAnswer("");
+    const randomQuestion = availableQuestions[Math.floor(Math.random() * availableQuestions.length)] as SupabaseQuestionRow;
+    const normalizedQuestion = normalizeQuestion(randomQuestion);
+
+    setCurrentQuestion(normalizedQuestion);
+      setSelectedAnswer("");
     setShowResult(false);
     setFastMethod(null);
+      setShowFullSolution(false);
     startTimeRef.current = Date.now();
     firstActionTimeRef.current = null;
   }
@@ -108,7 +244,7 @@ export default function Practice() {
     }
   }
 
-  async function handleSubmit() {
+    async function handleSubmit() {
     if (!currentQuestion || !selectedAnswer) {
       toast.error("Please select an answer");
       return;
@@ -123,7 +259,7 @@ export default function Practice() {
     setShowResult(true);
 
     // Save attempt
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('attempts')
       .insert({
         device_id: deviceId,
@@ -134,34 +270,42 @@ export default function Practice() {
         time_taken_ms: timeTaken,
         time_to_first_action_ms: firstActionTimeRef.current,
         skipped: false,
-      })
-      .select()
-      .single();
+        });
 
-    if (!error && data) {
-      setSessionAttempts(prev => [...prev, data as Attempt]);
-    }
+      if (!error) {
+        setSessionAttempts(prev => [
+          ...prev,
+          {
+            id: createAttemptId(),
+            questionId: currentQuestion.id,
+            conceptTags: currentQuestion.concept_tags ?? [],
+            correct,
+            skipped: false,
+            timeTakenMs: timeTaken,
+          },
+        ]);
+      }
 
     // Load fast method
     const { data: fmData } = await supabase
-      .from('fast_methods')
-      .select('*')
-      .eq('question_id', currentQuestion.id)
+      .from("fast_methods")
+      .select("*")
+      .eq("question_id", currentQuestion.id)
       .single();
 
-    setFastMethod(fmData);
+    setFastMethod(normalizeFastMethod(fmData as SupabaseFastMethodRow | null));
 
     toast[correct ? "success" : "error"](correct ? "Correct!" : "Incorrect");
   }
 
-  async function handleSkip() {
+    async function handleSkip() {
     if (!currentQuestion) return;
 
     handleFirstAction();
     
     const timeTaken = Date.now() - startTimeRef.current;
 
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('attempts')
       .insert({
         device_id: deviceId,
@@ -171,13 +315,21 @@ export default function Practice() {
         time_taken_ms: timeTaken,
         time_to_first_action_ms: firstActionTimeRef.current,
         skipped: true,
-      })
-      .select()
-      .single();
+        });
 
-    if (!error && data) {
-      setSessionAttempts(prev => [...prev, data as Attempt]);
-    }
+      if (!error) {
+        setSessionAttempts(prev => [
+          ...prev,
+          {
+            id: createAttemptId(),
+            questionId: currentQuestion.id,
+            conceptTags: currentQuestion.concept_tags ?? [],
+            correct: null,
+            skipped: true,
+            timeTakenMs: timeTaken,
+          },
+        ]);
+      }
 
     loadNextQuestion();
     toast.info("Question skipped");
@@ -185,19 +337,47 @@ export default function Practice() {
 
   function handleReset() {
     setSessionAttempts([]);
+      setShowFullSolution(false);
     loadNextQuestion();
     toast.success("Session reset");
   }
 
-  const sessionStats = {
-    answered: sessionAttempts.filter(a => !a.skipped).length,
-    accuracy: sessionAttempts.filter(a => !a.skipped).length > 0
-      ? (sessionAttempts.filter(a => a.correct).length / sessionAttempts.filter(a => !a.skipped).length * 100).toFixed(1)
-      : "0.0",
-    avgTime: sessionAttempts.length > 0
-      ? (sessionAttempts.reduce((sum, a) => sum + a.time_taken_ms, 0) / sessionAttempts.length / 1000).toFixed(1)
-      : "0.0",
-  };
+    const answeredAttempts = sessionAttempts.filter(a => !a.skipped);
+    const sessionStats = {
+      answered: answeredAttempts.length,
+      accuracy: answeredAttempts.length > 0
+        ? ((answeredAttempts.filter(a => a.correct).length / answeredAttempts.length) * 100).toFixed(1)
+        : "0.0",
+      avgTime: answeredAttempts.length > 0
+        ? (answeredAttempts.reduce((sum, a) => sum + a.timeTakenMs, 0) / answeredAttempts.length / 1000).toFixed(1)
+        : "0.0",
+    };
+
+    const slowConcepts = useMemo(() => {
+      if (answeredAttempts.length === 0) {
+        return [];
+      }
+
+      const totals = new Map<string, { total: number; count: number }>();
+
+      answeredAttempts.forEach(attempt => {
+        const tags = attempt.conceptTags.length > 0 ? attempt.conceptTags : ['untagged'];
+        tags.forEach(tag => {
+          const record = totals.get(tag) ?? { total: 0, count: 0 };
+          record.total += attempt.timeTakenMs;
+          record.count += 1;
+          totals.set(tag, record);
+        });
+      });
+
+      return Array.from(totals.entries())
+        .map(([tag, { total, count }]) => ({
+          tag,
+          avgTime: total / count / 1000,
+        }))
+        .sort((a, b) => b.avgTime - a.avgTime)
+        .slice(0, 3);
+    }, [answeredAttempts]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -215,11 +395,11 @@ export default function Practice() {
                   <SelectValue placeholder="Select course" />
                 </SelectTrigger>
                 <SelectContent>
-                  {courses.map(course => (
-                    <SelectItem key={course.id} value={course.id}>
-                      {course.title}
-                    </SelectItem>
-                  ))}
+                    {courses.map(course => (
+                      <SelectItem key={course.id} value={course.id}>
+                        {course.title ?? course.name ?? course.slug ?? course.id}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -313,11 +493,13 @@ export default function Practice() {
                   </p>
                 </Card>
 
-                {fastMethod ? (
-                  <Card className="p-6 bg-primary/5 border-primary">
+                  {fastMethod ? (
+                    <Card className="p-6 bg-primary/5 border-primary">
                     <div className="flex items-center gap-2 mb-4">
                       <Zap className="w-6 h-6 text-primary" />
-                      <h3 className="text-xl font-bold">FastLens: The Fastest Way</h3>
+                      <h3 className="text-xl font-bold">
+                        {fastMethod.title ?? "FastLens: The Fastest Way"}
+                      </h3>
                     </div>
 
                     <div className="space-y-4">
@@ -335,11 +517,13 @@ export default function Practice() {
                         </div>
                       </div>
 
-                      {fastMethod.why_others_wrong_md && (
+                        {(fastMethod.why_others_wrong_md || fastMethod.pitfall_analysis) && (
                         <div>
                           <h4 className="font-semibold mb-2">Why Other Options Are Wrong</h4>
                           <div className="prose prose-sm max-w-none">
-                            <ReactMarkdown>{fastMethod.why_others_wrong_md}</ReactMarkdown>
+                              <ReactMarkdown>
+                                {fastMethod.why_others_wrong_md ?? fastMethod.pitfall_analysis ?? ""}
+                              </ReactMarkdown>
                           </div>
                         </div>
                       )}
@@ -355,7 +539,7 @@ export default function Practice() {
                     </div>
                   </Card>
                 ) : (
-                  <Card className="p-6 bg-muted">
+                    <Card className="p-6 bg-muted">
                     <p className="text-center text-muted-foreground">
                       No safe shortcut—use the standard method.
                     </p>
@@ -364,6 +548,29 @@ export default function Practice() {
                     </Button>
                   </Card>
                 )}
+
+                  {currentQuestion.solution_steps_md && (
+                    <Card className="p-6">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-5 h-5 text-muted-foreground" />
+                          <h3 className="text-lg font-semibold">Full Step-by-Step</h3>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowFullSolution(prev => !prev)}
+                        >
+                          {showFullSolution ? "Hide Steps" : "Show Steps"}
+                        </Button>
+                      </div>
+                      {showFullSolution && (
+                        <div className="prose prose-sm max-w-none mt-4">
+                          <ReactMarkdown>{currentQuestion.solution_steps_md}</ReactMarkdown>
+                        </div>
+                      )}
+                    </Card>
+                  )}
 
                 <Button onClick={loadNextQuestion} className="w-full" size="lg">
                   Next Question
@@ -377,6 +584,40 @@ export default function Practice() {
           </Card>
         )}
       </div>
+
+        <div className="container mx-auto px-4 pb-12 max-w-3xl">
+          <Card className="p-6">
+            <h2 className="text-xl font-bold mb-4">Session Snapshot</h2>
+            <div className="grid gap-4 md:grid-cols-3">
+              <StatCounter label="Answered" value={sessionStats.answered.toString()} />
+              <StatCounter label="Accuracy" value={`${sessionStats.accuracy}%`} />
+              <StatCounter label="Avg Time" value={`${sessionStats.avgTime}s`} />
+            </div>
+
+            <div className="mt-6">
+              <h3 className="text-lg font-semibold mb-2">Slow Concepts</h3>
+              {slowConcepts.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Answer a few questions to see which topics slow you down.
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {slowConcepts.map(concept => (
+                    <li
+                      key={concept.tag}
+                      className="flex items-center justify-between rounded border border-border p-3"
+                    >
+                      <span className="font-medium">{concept.tag}</span>
+                      <span className="text-sm text-muted-foreground">
+                        {concept.avgTime.toFixed(1)}s avg
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </Card>
+        </div>
     </div>
   );
 }

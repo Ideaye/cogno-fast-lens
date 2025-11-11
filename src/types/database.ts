@@ -1,13 +1,14 @@
 export interface Course {
   id: string;
-  slug: string;
-  title: string;
-  board: string;
-  grade: number;
-  subject: string;
-  is_public: boolean;
-  created_at: string;
-  updated_at: string;
+  slug?: string | null;
+  title?: string | null;
+  name?: string | null;
+  board?: string | null;
+  grade?: number | null;
+  subject?: string | null;
+  is_public?: boolean | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface QuestionOption {
@@ -24,10 +25,10 @@ export interface Question {
   correct_key: string | null;
   solution_steps_md: string | null;
   concept_tags: string[];
-  difficulty_1_5: number;
-  time_budget_sec: number;
-  created_at: string;
-  updated_at: string;
+  difficulty_1_5?: number | null;
+  time_budget_sec?: number | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface FastMethod {
@@ -37,9 +38,12 @@ export interface FastMethod {
   fast_steps_md: string;
   why_others_wrong_md: string | null;
   checks_notes_md: string | null;
-  validated: boolean;
-  created_at: string;
-  updated_at: string;
+  validated?: boolean | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  title?: string | null;
+  pitfall_analysis?: string | null;
+  full_solution_md?: string | null;
 }
 
 export interface Attempt {
