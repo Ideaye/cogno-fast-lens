@@ -14,8 +14,28 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
-import type { Course, Question, FastMethod, QuestionOption } from "@/types/database";
+  import type { Course, Question, FastMethod, QuestionOption } from "@/types/database";
 import { CheckCircle2, XCircle, SkipForward, RotateCcw, Zap, Clock } from "lucide-react";
+
+type CourseRow = Course & {
+  name?: string | null;
+};
+
+type SupabaseQuestionRow = Partial<Question> & {
+  text?: string | null;
+  correct_option_index?: number | null;
+  options?: unknown;
+  concept_tags?: string[] | string | null;
+  full_solution_md?: string | null;
+};
+
+type SupabaseFastMethodRow = Partial<FastMethod> & {
+  title?: string | null;
+  justification?: string | null;
+  pitfall_analysis?: string | null;
+  full_solution_md?: string | null;
+  validity_notes_md?: string | null;
+};
 
 type SessionAttemptSummary = {
   id: string;
@@ -31,11 +51,101 @@ const createAttemptId = () =>
     ? crypto.randomUUID()
     : `attempt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+function normalizeQuestion(raw: SupabaseQuestionRow): Question {
+  const optionsSource = Array.isArray(raw.options) ? raw.options : [];
+  const options: QuestionOption[] | null =
+    optionsSource.length > 0
+      ? optionsSource.map((option, index) => {
+          if (typeof option === "string") {
+            return {
+              key: LETTERS[index] ?? String(index + 1),
+              text: option,
+            };
+          }
+          if (option && typeof option === "object") {
+            const candidate = option as Partial<QuestionOption>;
+            if (candidate.key && candidate.text) {
+              return {
+                key: String(candidate.key),
+                text: String(candidate.text),
+              };
+            }
+            if ("text" in candidate) {
+              return {
+                key: LETTERS[index] ?? String(index + 1),
+                text: String(candidate.text),
+              };
+            }
+          }
+          return {
+            key: LETTERS[index] ?? String(index + 1),
+            text: String(option ?? ""),
+          };
+        })
+      : null;
+
+  const conceptTags = Array.isArray(raw.concept_tags)
+    ? (raw.concept_tags as string[])
+    : typeof raw.concept_tags === "string"
+      ? raw.concept_tags
+          .split(/[;,]/)
+          .map((tag) => tag.trim())
+          .filter(Boolean)
+      : [];
+
+  const correctKey =
+    raw.correct_key ??
+    (typeof raw.correct_option_index === "number" && options
+      ? options[raw.correct_option_index]?.key ?? null
+      : null);
+
+  return {
+    id: raw.id ?? "",
+    course_id: raw.course_id ?? "",
+    type: (raw.type as "MCQ" | "FR") ?? "MCQ",
+    stem_md: raw.stem_md ?? raw.text ?? "",
+    options,
+    correct_key: correctKey,
+    solution_steps_md: raw.solution_steps_md ?? raw.full_solution_md ?? null,
+    concept_tags: conceptTags,
+    difficulty_1_5: raw.difficulty_1_5 ?? null,
+    time_budget_sec: raw.time_budget_sec ?? null,
+    created_at: raw.created_at ?? null,
+    updated_at: raw.updated_at ?? null,
+  };
+}
+
+type NormalizedFastMethod = FastMethod & {
+  title?: string | null;
+  pitfall_analysis?: string | null;
+  full_solution_md?: string | null;
+};
+
+function normalizeFastMethod(raw: SupabaseFastMethodRow | null): NormalizedFastMethod | null {
+  if (!raw) return null;
+
+  return {
+    id: raw.id ?? "",
+    question_id: raw.question_id ?? "",
+    short_justification_md:
+      raw.short_justification_md ?? raw.justification ?? "",
+    fast_steps_md: raw.fast_steps_md ?? raw.full_solution_md ?? "",
+    why_others_wrong_md: raw.why_others_wrong_md ?? null,
+    checks_notes_md: raw.checks_notes_md ?? raw.validity_notes_md ?? null,
+    validated: raw.validated ?? true,
+    title: raw.title ?? null,
+    pitfall_analysis: raw.pitfall_analysis ?? null,
+    full_solution_md: raw.full_solution_md ?? null,
+  };
+}
+
 export default function Practice() {
-  const [courses, setCourses] = useState<Course[]>([]);
+    const [courses, setCourses] = useState<CourseRow[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<string>("");
-  const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
-  const [fastMethod, setFastMethod] = useState<FastMethod | null>(null);
+    const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
+    const [fastMethod, setFastMethod] = useState<FastMethod | null>(null);
   const [selectedAnswer, setSelectedAnswer] = useState<string>("");
   const [showResult, setShowResult] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
@@ -56,21 +166,28 @@ export default function Practice() {
     }
   }, [selectedCourseId]);
 
-    async function loadCourses() {
-    const { data, error } = await supabase
-      .from('courses')
-      .select('*')
-      .eq('is_public', true)
-      .order('grade');
-    
+  async function loadCourses() {
+    const { data, error } = await supabase.from("courses").select("*");
+
     if (error) {
       toast.error("Failed to load courses");
       return;
     }
-    
-    setCourses(data || []);
-    if (data && data.length > 0) {
-      setSelectedCourseId(data[0].id);
+
+    const rows: CourseRow[] = (data ?? []) as CourseRow[];
+    const publicCourses = rows.filter(
+      (course) => course.is_public === null || course.is_public === undefined || course.is_public === true,
+    );
+
+    publicCourses.sort((a, b) => {
+      const nameA = (a.title ?? a.name ?? a.slug ?? "").toLowerCase();
+      const nameB = (b.title ?? b.name ?? b.slug ?? "").toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+
+    setCourses(publicCourses);
+    if (publicCourses.length > 0) {
+      setSelectedCourseId(publicCourses[0].id);
     }
   }
 
@@ -78,17 +195,12 @@ export default function Practice() {
     if (!selectedCourseId) return;
 
     // Simple adaptive selector
-    const recentAttempts = sessionAttempts.slice(-10);
-    const wrongConcepts = recentAttempts
-      .filter(a => !a.correct)
-      .map(a => a.question_id);
-    
-    const lastThreeIds = sessionAttempts.slice(-3).map(a => a.question_id);
+    const lastThreeIds = sessionAttempts.slice(-3).map(a => a.questionId);
 
     const { data: questions, error } = await supabase
-      .from('questions')
-      .select('*')
-      .eq('course_id', selectedCourseId);
+      .from("questions")
+      .select("*")
+      .eq("course_id", selectedCourseId);
 
     if (error || !questions || questions.length === 0) {
       toast.error("No questions available");
@@ -103,13 +215,10 @@ export default function Practice() {
     }
 
     // Pick random from available
-    const randomQuestion = availableQuestions[Math.floor(Math.random() * availableQuestions.length)];
-    
-    setCurrentQuestion({
-      ...randomQuestion,
-      type: randomQuestion.type as 'MCQ' | 'FR',
-      options: randomQuestion.options as unknown as QuestionOption[] | null,
-    } as Question);
+    const randomQuestion = availableQuestions[Math.floor(Math.random() * availableQuestions.length)] as SupabaseQuestionRow;
+    const normalizedQuestion = normalizeQuestion(randomQuestion);
+
+    setCurrentQuestion(normalizedQuestion);
       setSelectedAnswer("");
     setShowResult(false);
     setFastMethod(null);
@@ -166,14 +275,14 @@ export default function Practice() {
         ]);
       }
 
-      // Load fast method
-      const { data: fmData } = await supabase
-      .from('fast_methods')
-      .select('*')
-      .eq('question_id', currentQuestion.id)
+    // Load fast method
+    const { data: fmData } = await supabase
+      .from("fast_methods")
+      .select("*")
+      .eq("question_id", currentQuestion.id)
       .single();
 
-    setFastMethod(fmData);
+    setFastMethod(normalizeFastMethod(fmData as SupabaseFastMethodRow | null));
 
     toast[correct ? "success" : "error"](correct ? "Correct!" : "Incorrect");
   }
@@ -275,11 +384,11 @@ export default function Practice() {
                   <SelectValue placeholder="Select course" />
                 </SelectTrigger>
                 <SelectContent>
-                  {courses.map(course => (
-                    <SelectItem key={course.id} value={course.id}>
-                      {course.title}
-                    </SelectItem>
-                  ))}
+                    {courses.map(course => (
+                      <SelectItem key={course.id} value={course.id}>
+                        {course.title ?? course.name ?? course.slug ?? course.id}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -377,7 +486,9 @@ export default function Practice() {
                     <Card className="p-6 bg-primary/5 border-primary">
                     <div className="flex items-center gap-2 mb-4">
                       <Zap className="w-6 h-6 text-primary" />
-                      <h3 className="text-xl font-bold">FastLens: The Fastest Way</h3>
+                      <h3 className="text-xl font-bold">
+                        {fastMethod.title ?? "FastLens: The Fastest Way"}
+                      </h3>
                     </div>
 
                     <div className="space-y-4">
@@ -395,11 +506,13 @@ export default function Practice() {
                         </div>
                       </div>
 
-                      {fastMethod.why_others_wrong_md && (
+                        {(fastMethod.why_others_wrong_md || fastMethod.pitfall_analysis) && (
                         <div>
                           <h4 className="font-semibold mb-2">Why Other Options Are Wrong</h4>
                           <div className="prose prose-sm max-w-none">
-                            <ReactMarkdown>{fastMethod.why_others_wrong_md}</ReactMarkdown>
+                              <ReactMarkdown>
+                                {fastMethod.why_others_wrong_md ?? fastMethod.pitfall_analysis ?? ""}
+                              </ReactMarkdown>
                           </div>
                         </div>
                       )}
